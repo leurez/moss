@@ -8,3 +8,36 @@
 | Common Crawl | A dataset of web pages collected by crawling the internet, which includes a diverse set of sources and languages. | Petabytes of data | http://commoncrawl.org/ |
 | SPGC | A large-scale corpus of Chinese text collected from a wide range of sources, including news articles, social media, and online forums. | Over 3 billion words | https://github.com/isnowfy/sogou-dl-dataset |
 | Common Crawl | A dataset of web pages collected by crawling the internet, which includes a diverse set of sources and languages. | Petabytes of data | http://commoncrawl.org/ |
+
+B (统一)
+C (医生)
+A (树叶)
+C (山羊)
+D (洛阳)
+A (猫)
+B (打孔机)
+A (地铁)
+D (社会学)
+C (大衣)
+8
+B (东北)
+C (米饭)
+4
+D (桌布)
+8
+D (OXX)
+C (偃)
+抗日战争
+B (壁橱)
+64
+大犯法
+款式样
+6
+B (军马)
+祭奠定
+头晕震荡
+5
+52
+K
+
+
