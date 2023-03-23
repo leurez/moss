@@ -21,6 +21,7 @@ class SelfAttention(nn.Module):
         self, hidden_size, num_attention_heads, layer_id,
         hidden_size_per_attention_head=None, bias=True,
         params_dtype=torch.half, position_encoding_2d=True):
+        super().__init__()
         ## main body
         self.layer_id = layer_id
         self.hidden_size = hidden_size

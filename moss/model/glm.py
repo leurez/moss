@@ -41,10 +41,23 @@ from transformers.generation.utils import (
 )
 
 logger = logging.get_logger(__name__)
-torch._C_._jit_set_profiling_mode(False)
-torch._C_._jit_set_profiling_executor(False)
-torch._C_._jit_override_can_fuse_on_cpu(True)
-torch._C_._jit_override_can_fuse_on_gpu(True)
+#torch._C_._jit_set_profiling_mode(False)
+#torch._C_._jit_set_profiling_executor(False)
+#torch._C_._jit_override_can_fuse_on_cpu(True)
+#torch._C_._jit_override_can_fuse_on_gpu(True)
+#
+
+class GenerationConfig(dict):
+
+    __getattr__ = dict.__getitem__
+
+    def __init__(self):
+      self._from_model_config = True,
+      self.bos_token_id = 150004,
+      self.eos_token_id = 150005,
+      self.pad_token_id = 0,
+      self.transformers_version = "4.26.1",
+      self.max_new_tokens = None
 
 
 class InvalidScoreLogitsProcessor(LogitsProcessor):
@@ -166,9 +179,10 @@ class ChatGLMModel(nn.Module):
     """
 
     def __init__(self, config):
-        super().__init__(config)
+        super().__init__()
 
         # recording parameters
+        self.device = config.device
         self.max_sequence_length = config.max_sequence_length
         self.hidden_size = config.hidden_size
         self.params_dtype = torch.half
@@ -354,11 +368,11 @@ class ChatGLMModel(nn.Module):
 
 class ChatGLMForConditionalGeneration(nn.Module):
     def __init__(self, config):
-        super().__init__(config)
-
+        super().__init__()
         # self.hidden_size = config.hidden_size
         # self.params_dtype = torch.half
         # self.vocab_size = config.vocab_size
+        self.device = config.device
         self.max_sequence_length = config.max_sequence_length
         self.position_encoding_2d = config.position_encoding_2d
         self.transformer = ChatGLMModel(config)
@@ -604,8 +618,9 @@ class ChatGLMForConditionalGeneration(nn.Module):
         batch_size, input_ids_seq_length = input_ids.shape[0], input_ids.shape[-1]
 
         if generation_config is None:
-            generation_config = self.generation_config
-        generation_config = copy.deepcopy(generation_config)
+            # generation_config = self.generation_config
+            generation_config = GenerationConfig()
+        # generation_config = copy.deepcopy(generation_config)
         model_kwargs = generation_config.update(**kwargs)
         bos_token_id, eos_token_id = generation_config.bos_token_id, generation_config.eos_token_id
 
