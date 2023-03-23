@@ -14,7 +14,7 @@ import moss.model.constant as const
 from torch.nn import LayerNorm
 from torch.nn import CrossEntropyLoss
 from torch.nn.utils import skip_init
-from typing import Optional, Tuple, Union, List, Callable
+from typing import Optional, Tuple, Union, List, Callable, Dict, Any
 
 from moss.layer.activation import GLU
 from moss.layer.selfattention import SelfAttention
@@ -26,6 +26,7 @@ from transformers.utils import(
 )
 
 from transformers.modeling_outputs import (
+    ModelOutput,
     BaseModelOutputWithPast,
     CausalLMOutputWithPast,
     BaseModelOutputWithPastAndCrossAttentions,
@@ -38,26 +39,20 @@ from transformers.generation.utils import (
     GenerationConfig,
     LogitsProcessorList,
     StoppingCriteriaList,
+    TemperatureLogitsWarper,
+    TopKLogitsWarper,
+    TopPLogitsWarper
 )
+from transformers import MaxLengthCriteria
+from moss.model.config import GenerationConfig
+
 
 logger = logging.get_logger(__name__)
 #torch._C_._jit_set_profiling_mode(False)
 #torch._C_._jit_set_profiling_executor(False)
 #torch._C_._jit_override_can_fuse_on_cpu(True)
 #torch._C_._jit_override_can_fuse_on_gpu(True)
-#
 
-class GenerationConfig(dict):
-
-    __getattr__ = dict.__getitem__
-
-    def __init__(self):
-      self._from_model_config = True,
-      self.bos_token_id = 150004,
-      self.eos_token_id = 150005,
-      self.pad_token_id = 0,
-      self.transformers_version = "4.26.1",
-      self.max_new_tokens = None
 
 
 class InvalidScoreLogitsProcessor(LogitsProcessor):
@@ -372,6 +367,7 @@ class ChatGLMForConditionalGeneration(nn.Module):
         # self.hidden_size = config.hidden_size
         # self.params_dtype = torch.half
         # self.vocab_size = config.vocab_size
+        self.config = config
         self.device = config.device
         self.max_sequence_length = config.max_sequence_length
         self.position_encoding_2d = config.position_encoding_2d
@@ -414,6 +410,90 @@ class ChatGLMForConditionalGeneration(nn.Module):
         position_ids = position_ids.unsqueeze(0)
 
         return attention_mask, position_ids
+
+    def _extract_past_from_model_output(self, outputs: ModelOutput, standardize_cache_format: bool = False):
+        past_key_values = None
+        if "past_key_values" in outputs:
+            past_key_values = outputs.past_key_values
+        elif "mems" in outputs:
+            past_key_values = outputs.mems
+        elif "past_buckets_states" in outputs:
+            past_key_values = outputs.past_buckets_states
+
+        # Bloom fix: standardizes the cache format when requested
+        if standardize_cache_format and hasattr(self, "_convert_to_standard_cache"):
+            batch_size = outputs.logits.shape[0]
+            past_key_values = self._convert_to_standard_cache(past_key_values, batch_size=batch_size)
+        return past_key_values
+
+    def _update_model_kwargs_for_generation(
+        self,
+        outputs: ModelOutput,
+        model_kwargs: Dict[str, Any],
+        is_encoder_decoder: bool = False,
+        standardize_cache_format: bool = False) -> Dict[str, Any]:
+        # update past_key_values
+        model_kwargs["past_key_values"] = self._extract_past_from_model_output(
+            outputs, standardize_cache_format=standardize_cache_format
+        )
+
+        # update token_type_ids with last value
+        if "token_type_ids" in model_kwargs:
+            token_type_ids = model_kwargs["token_type_ids"]
+            model_kwargs["token_type_ids"] = torch.cat([token_type_ids, token_type_ids[:, -1].unsqueeze(-1)], dim=-1)
+
+        if not is_encoder_decoder:
+            # update attention mask
+            if "attention_mask" in model_kwargs:
+                attention_mask = model_kwargs["attention_mask"]
+                model_kwargs["attention_mask"] = torch.cat(
+                    [attention_mask, attention_mask.new_ones((attention_mask.shape[0], 1))], dim=-1
+                )
+        else:
+            # update decoder attention mask
+            if "decoder_attention_mask" in model_kwargs:
+                decoder_attention_mask = model_kwargs["decoder_attention_mask"]
+                model_kwargs["decoder_attention_mask"] = torch.cat(
+                    [decoder_attention_mask, decoder_attention_mask.new_ones((decoder_attention_mask.shape[0], 1))],
+                    dim=-1,
+                )
+
+        return model_kwargs
+
+    def _get_logits_warper(self, generation_config: GenerationConfig) -> LogitsProcessorList:
+        """
+        This class returns a [`LogitsProcessorList`] list object that contains all relevant [`LogitsWarper`] instances
+        used for multinomial sampling.
+        """
+
+        # instantiate warpers list
+        warpers = LogitsProcessorList()
+
+        # the following idea is largely copied from this PR: https://github.com/huggingface/transformers/pull/5420/files
+        # all samplers can be found in `generation_utils_samplers.py`
+        if generation_config.temperature is not None and generation_config.temperature != 1.0:
+            warpers.append(TemperatureLogitsWarper(generation_config.temperature))
+        min_tokens_to_keep = 2 if generation_config.num_beams > 1 else 1
+        if generation_config.top_k is not None and generation_config.top_k != 0:
+            warpers.append(TopKLogitsWarper(top_k=generation_config.top_k, min_tokens_to_keep=min_tokens_to_keep))
+        if generation_config.top_p is not None and generation_config.top_p < 1.0:
+            warpers.append(TopPLogitsWarper(top_p=generation_config.top_p, min_tokens_to_keep=min_tokens_to_keep))
+        if generation_config.typical_p is not None and generation_config.typical_p < 1.0:
+            warpers.append(
+                TypicalLogitsWarper(mass=generation_config.typical_p, min_tokens_to_keep=min_tokens_to_keep)
+            )
+        if generation_config.epsilon_cutoff is not None and 0.0 < generation_config.epsilon_cutoff < 1.0:
+            warpers.append(
+                EpsilonLogitsWarper(epsilon=generation_config.epsilon_cutoff, min_tokens_to_keep=min_tokens_to_keep)
+            )
+        if generation_config.eta_cutoff is not None and 0.0 < generation_config.eta_cutoff < 1.0:
+            warpers.append(
+                EtaLogitsWarper(epsilon=generation_config.eta_cutoff, min_tokens_to_keep=min_tokens_to_keep)
+            )
+        # `LogitNormalization` should always be the last logit processor, when present
+        if generation_config.renormalize_logits is True:
+            warpers.append(LogitNormalization())
+        return warpers
 
     def prepare_inputs_for_generation(
             self,
@@ -613,8 +693,8 @@ class ChatGLMForConditionalGeneration(nn.Module):
             logits_processor: Optional[LogitsProcessorList] = None,
             stopping_criteria: Optional[StoppingCriteriaList] = None,
             prefix_allowed_tokens_fn: Optional[Callable[[int, torch.Tensor], List[int]]] = None,
-            **kwargs,
-    ):
+            **kwargs):
+        # main body
         batch_size, input_ids_seq_length = input_ids.shape[0], input_ids.shape[-1]
 
         if generation_config is None:
@@ -658,17 +738,9 @@ class ChatGLMForConditionalGeneration(nn.Module):
         logits_processor = logits_processor if logits_processor is not None else LogitsProcessorList()
         stopping_criteria = stopping_criteria if stopping_criteria is not None else StoppingCriteriaList()
 
-        logits_processor = self._get_logits_processor(
-            generation_config=generation_config,
-            input_ids_seq_length=input_ids_seq_length,
-            encoder_input_ids=input_ids,
-            prefix_allowed_tokens_fn=prefix_allowed_tokens_fn,
-            logits_processor=logits_processor,
-        )
+        logits_processor.append(InvalidScoreLogitsProcessor())
+        stopping_criteria.append(MaxLengthCriteria(max_length=generation_config.max_length))
 
-        stopping_criteria = self._get_stopping_criteria(
-            generation_config=generation_config, stopping_criteria=stopping_criteria
-        )
         logits_warper = self._get_logits_warper(generation_config)
 
         unfinished_sequences = input_ids.new(input_ids.shape[0]).fill_(1)

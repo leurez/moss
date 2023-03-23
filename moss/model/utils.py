@@ -2,6 +2,7 @@
 #-*- coding:utf-8 -*-
 
 
+import math
 import torch
 
 import torch.nn.functional as F
@@ -75,7 +76,7 @@ def attention_fn(
 
     query_key_layer_scaling_coeff = layer_id + 1.0
     if scaling_attention_score:
-        query_layer = query_layer / (torch.sqrt(hidden_size) * query_key_layer_scaling_coeff)
+        query_layer = query_layer / (math.sqrt(hidden_size) * query_key_layer_scaling_coeff)
     
     # ===================================
     # Raw attention scores. [b, np, s, s]
@@ -141,6 +142,7 @@ def attention_fn(
     attention_probs = attention_probs.view(output_size[0] * output_size[1], output_size[2], -1)
 
     # matmul: [b * np, sq, hn]
+    print(attention_probs.shape, value_layer.shape)
     context_layer = torch.bmm(attention_probs, value_layer.transpose(0, 1))
 
     # change view [b, np, sq, hn]

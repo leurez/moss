@@ -22,23 +22,26 @@ class GLMConfig:
         self.max_sequence_length = 2048
         self.model_type = "chatglm"
         self.num_attention_heads = 32
-        self.num_layers = 28
+        self.num_layers = 1
         self.position_encoding_2d = True
         self.torch_dtype = torch.float16
         self.transformers_version = "4.23.1"
         self.use_cache = True
         self.vocab_size = 150528
 
+        self.is_encoder_decoder = False
+
 which = int(sys.argv[1])
 tokenizer = AutoTokenizer.from_pretrained("THUDM/chatglm-6b", trust_remote_code=True)
 if which:
     model = AutoModel.from_pretrained("THUDM/chatglm-6b", trust_remote_code=True).half().cuda()
 else:
-    model = ChatGLMForConditionalGeneration(GLMConfig(0))
+    model = ChatGLMForConditionalGeneration(GLMConfig(0)).half().cuda()
 model = model.eval()
 
 os_name = platform.system()
-clear_command = 'cls' if os_name == 'Windows' else 'clear'
+# clear_command = 'cls' if os_name == 'Windows' else 'clear'
+clear_command = 'ls'
 
 
 def build_prompt(history):
@@ -48,6 +51,13 @@ def build_prompt(history):
         prompt += f"\n\nChatGLM-6B：{response}"
     return prompt
 
+
+def debug():
+    count, history = 0, []
+    for response, history in model.stream_chat(tokenizer, 'hello', history=history):
+        if count > 0:
+            break
+        count += 1
 
 def main():
     history = []
@@ -63,15 +73,14 @@ def main():
             continue
         count = 0
         for response, history in model.stream_chat(tokenizer, query, history=history):
-            with open("temp.cfg","w") as fp:
-                print(model.generation_config, file=fp)
             count += 1
             if count % 8 == 0:
                 os.system(clear_command)
                 print(build_prompt(history), flush=True)
-        # os.system(clear_command)
+        os.system(clear_command)
         print(build_prompt(history), flush=True)
 
 
 if __name__ == "__main__":
-    main()
+    # main()
+    debug()

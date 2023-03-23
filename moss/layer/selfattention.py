@@ -11,7 +11,8 @@ from torch.nn.utils import skip_init
 from moss.layer.embedding import RotaryEmbedding
 from moss.model.utils import (
     attention_fn,
-    apply_rotary_pos_emb_index
+    apply_rotary_pos_emb_index,
+    split_tensor_along_last_dim
 )
 
 
@@ -88,7 +89,7 @@ class SelfAttention(nn.Module):
         mixed_raw_layer = mixed_raw_layer.view(*new_tensor_shape)
 
         # [seq_len, batch, num_attention_heads, hidden_size_per_attention_head]
-        (query_layer, key_layer, value_layer) = self.split_tensor_along_last_dim(mixed_raw_layer, 3)
+        (query_layer, key_layer, value_layer) = split_tensor_along_last_dim(mixed_raw_layer, 3)
         if self.position_encoding_2d:
             q1, q2 = query_layer.chunk(2, dim=(query_layer.ndim - 1))
             k1, k2 = key_layer.chunk(2, dim=(key_layer.ndim - 1))
