@@ -3,6 +3,7 @@
 
 
 import os
+import pdb
 import sys
 import torch
 import platform
@@ -22,7 +23,7 @@ class GLMConfig:
         self.max_sequence_length = 2048
         self.model_type = "chatglm"
         self.num_attention_heads = 32
-        self.num_layers = 1
+        self.num_layers = 28
         self.position_encoding_2d = True
         self.torch_dtype = torch.float16
         self.transformers_version = "4.23.1"
@@ -31,17 +32,36 @@ class GLMConfig:
 
         self.is_encoder_decoder = False
 
+
+def load_model(config):
+    model = ChatGLMForConditionalGeneration(config)
+    state_dict = None
+    import config as cfg
+    for f in cfg.shard_model_files:
+        st = torch.load(f, map_location='cpu')
+        if state_dict is None:
+            state_dict = st
+        else:
+            state_dict.update(**st)
+    model.load_state_dict(state_dict)
+    return model
+
+
 which = int(sys.argv[1])
-tokenizer = AutoTokenizer.from_pretrained("THUDM/chatglm-6b", trust_remote_code=True)
+# model_path = "THUDM/chatglm-6b"
+model_path = "/home/ec2-user/.cache/huggingface/hub/models--THUDM--chatglm-6b/snapshots/d2bbc82a2cdd04522ad340bdd464379808676950"
+tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True, local_files_only=True)
 if which:
-    model = AutoModel.from_pretrained("THUDM/chatglm-6b", trust_remote_code=True).half().cuda()
+    model = AutoModel.from_pretrained(model_path, trust_remote_code=True, local_files_only=True).half().cuda()
 else:
-    model = ChatGLMForConditionalGeneration(GLMConfig(0)).half().cuda()
+    confi = GLMConfig(0)
+    model = load_model(confi).half().cuda()
+    #model = ChatGLMForConditionalGeneration(confi).half().cuda()
 model = model.eval()
 
+# pdb.set_trace()
 os_name = platform.system()
-# clear_command = 'cls' if os_name == 'Windows' else 'clear'
-clear_command = 'ls'
+clear_command = 'cls' if os_name == 'Windows' else 'clear'
 
 
 def build_prompt(history):
@@ -55,9 +75,10 @@ def build_prompt(history):
 def debug():
     count, history = 0, []
     for response, history in model.stream_chat(tokenizer, 'hello', history=history):
-        if count > 0:
+        if count > 1:
             break
         count += 1
+
 
 def main():
     history = []
@@ -82,5 +103,7 @@ def main():
 
 
 if __name__ == "__main__":
-    # main()
-    debug()
+    if sys.argv[2] == '0':
+        main()
+    else:
+        debug()

@@ -68,7 +68,7 @@ def attention_fn(
     # main body of the func
     if layer_past is not None:
         past_key, past_value = layer_past
-        key_layer = torch.cat((past_key, past_value), dim=0)
+        key_layer = torch.cat((past_key, key_layer), dim=0)
         value_layer = torch.cat((past_value, value_layer), dim=0)
     # seqlen, batch, num_attention_heads, hidden_size_per_attention_head
     seq_len, b, nh, hidden_size = key_layer.shape
@@ -142,7 +142,6 @@ def attention_fn(
     attention_probs = attention_probs.view(output_size[0] * output_size[1], output_size[2], -1)
 
     # matmul: [b * np, sq, hn]
-    print(attention_probs.shape, value_layer.shape)
     context_layer = torch.bmm(attention_probs, value_layer.transpose(0, 1))
 
     # change view [b, np, sq, hn]

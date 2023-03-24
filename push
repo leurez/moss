@@ -1,0 +1,5 @@
+/usr/bin/expect << EOF
+	set token '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'
+	spawn git push origin main
+	expect {
+		"UserName
