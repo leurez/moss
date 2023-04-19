@@ -127,4 +127,5 @@ if __name__ == "__main__":
         temperature = 1.0,
         max_new_tokens = 256,
         chatio = SimpleChatIO(),
+        debug = False,
     )

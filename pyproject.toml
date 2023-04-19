@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "moss"
+version = "0.0.1"
+description = "A platform for training, serving, and evaluating large language model based chatbots."
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+]
+dependencies = [
+    "accelerate", "fastapi", "numpy",
+    "requests", "sentencepiece",
+    "transformers>=4.28.0", "tokenizers>=0.12.1", "torch",
+    "shortuuid", "pydantic",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/leurez/moss.git"
+"Bug Tracker" = "https://github.com/leurez/moss/issues"
+
+[tool.setuptools.packages.find]
+exclude = ["assets*", "benchmark*", "docs", "dist*", "playground*", "scripts*", "tests*"]
+
+[tool.wheel]
+exclude = ["assets*", "benchmark*", "docs", "dist*", "playground*", "scripts*", "tests*"]
