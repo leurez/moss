@@ -50,6 +50,11 @@ def generate(
 
         output_ids.append(token)
 
+        if token == tokenizer.eos_token_id:
+            stopped = True
+        else:
+            stopped = False
+        
         if i % stream_interval == 0 or i == max_new_tokens - 1 or stopped:
             output = tokenizer.decode(output_ids, skip_special_tokens=True)
             if stop_str:
