@@ -84,9 +84,9 @@ def chat_loop(
         }
 
         chatio.prompt_for_output(conv.roles[1])
-        outputs = generate_stream_func(model, tokenizer, params, device)
-        # outputs = chatio.stream_output(outputs, skip_echo_len)
-        logger.typewriter_log(outputs)
+        outputs_stream = generate_stream_func(model, tokenizer, params, device)
+        outputs = chatio.stream_output(outputs_stream, skip_echo_len)
+        # logger.typewriter_log(outputs)
         # NOTE: strip is important to align with the training data.
         conv.messages[-1][-1] = outputs.strip()
 
@@ -118,9 +118,9 @@ class SimpleChatIO(ChatIO):
 
 if __name__ == "__main__":
     chat_loop(
-        model_path = "",
+        model_path = sys.argv[1],
         device = "cuda",
-        num_gpus = int(sys.argv[1]),
+        num_gpus = int(sys.argv[2]),
         max_gpu_memory = '13GiB',
         load_8bit = False,
         conv_template = None,

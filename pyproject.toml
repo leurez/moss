@@ -14,7 +14,7 @@ classifiers = [
 ]
 dependencies = [
     "accelerate", "fastapi", "numpy",
-    "requests", "sentencepiece",
+    "requests", "sentencepiece", "colorama",
     "transformers>=4.28.0", "tokenizers>=0.12.1", "torch",
     "shortuuid", "pydantic",
 ]

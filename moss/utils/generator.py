@@ -50,9 +50,16 @@ def generate(
 
         output_ids.append(token)
 
-        if token == tokenizer.eos_token_id:
+        if i % stream_interval == 0 or i == max_new_tokens - 1 or stopped:
+            output = tokenizer.decode(output_ids, skip_special_tokens=True)
+            if stop_str:
+                pos = output.rfind(stop_str, l_prompt)
+                if pos != -1:
+                    output = output[:pos]
+                    stopped = True
+            yield output
+
+        if stopped:
             break
-    # clear the past
+
     del past_key_values
-    # typing
-    return tokenizer.decode(output_ids, skip_special_tokens=True)
