@@ -103,14 +103,13 @@ class SimpleChatIO(ChatIO):
 
     def stream_output(self, output_stream, skip_echo_len: int):
         pre = 0
-
         for outputs in output_stream:
             outputs = outputs[skip_echo_len:].strip()
             outputs = outputs.split(" ")
             now = len(outputs) - 1
             if now > pre:
-                # print(" ".join(outputs[pre:now]), end=" ", flush=True)
-                logger.typewriter_log()
+                print(" ".join(outputs[pre:now]), end=" ", flush=True)
+                # logger.typewriter_log()
                 pre = now
         print(" ".join(outputs[pre:]), flush=True)
         return " ".join(outputs)
